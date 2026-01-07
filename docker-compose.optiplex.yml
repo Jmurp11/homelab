@@ -1,0 +1,583 @@
+# Homelab Docker Compose for Dell Optiplex 7040 (x86_64)
+# Domain: murphylab.app
+# Storage base: /mnt/2tb/docker (2TB external HDD)
+# Headscale subnet: 100.64.0.0/10
+# 
+# ENVIRONMENT VARIABLES (set in .env or export before docker-compose up):
+# LETSENCRYPT_EMAIL=admin@murphylab.app
+# DNS_PROVIDER_API_KEY=your-cloudflare-api-key  # if using DNS challenge
+# HEADSCALE_ADMIN_PASSWORD=secure-password-here
+# VAULTWARDEN_ADMIN_TOKEN=secure-token-here
+# IMMICH_DB_PASSWORD=secure-db-password
+# IMMICH_ADMIN_PASSWORD=secure-admin-password
+# ACTUALBUDGET_ADMIN_PASSWORD=secure-budget-password
+# N8N_BASIC_AUTH_PASSWORD=secure-n8n-password
+# BESZEL_ADMIN_PASSWORD=secure-beszel-password
+# TRAEFIK_BASIC_AUTH_PASSWORD=secure-traefik-password (htpasswd -nb admin password | base64)
+
+networks:
+  web:
+    driver: bridge
+  headscale_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 100.64.0.0/10
+
+volumes:
+  traefik_acme:
+  headscale_data:
+  portainer_data:
+  vaultwarden_data:
+  actualbudget_data:
+  immich_db_data:
+  immich_photos:
+  model-cache:
+  booklore_data:
+  openbooks_data:
+  n8n_data:
+  beszel_data:
+  beszel_socket:
+  beszel_agent_data:
+  # Shared book data binds (map host path to named volumes via bind)
+  bookdata_books:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+  device: ${BOOKDATA_PATH:-./bookdata}/books
+  bookdata_bookdrop:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+  device: ${BOOKDATA_PATH:-./bookdata}/bookdrop
+
+services:
+
+  ####################
+  # Traefik 3 (Reverse Proxy + HTTPS/Let's Encrypt)
+  ####################
+  traefik:
+    image: traefik:v3.6
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - "--configFile=/traefik.yml"
+    ports:
+      # Public entrypoint
+      - "80:80"      # HTTP (redirect to HTTPS)
+      - "443:443"    # HTTPS
+      # Internal headscale entrypoint (optional, bind to headscale interface)
+      - "8443:8443"  # HTTPS on headscale network (vpn-only services)
+      - "8080:8080"  # Dashboard (requires auth, served on web network)
+    environment:
+  # DNS challenge provider env vars (optional - only needed if you switch Traefik to DNS-01)
+  # Example for Cloudflare (uncomment if using DNS-01 with Cloudflare):
+  # - CLOUDFLARE_EMAIL=${LETSENCRYPT_EMAIL}
+  # - CLOUDFLARE_API_KEY=${CLOUDFLARE_API_KEY}
+  # - CLOUDFLARE_ZONE_API_TOKEN=${CLOUDFLARE_ZONE_API_TOKEN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/traefik.yml:ro
+      - traefik_acme:/acme
+      - ./traefik/dynamic:/dynamic
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    labels:
+      # Traefik Dashboard (VPN-only via middleware)
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.murphylab.app`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik.middlewares=vpn-only@file"
+    networks:
+      - web
+      - headscale_net
+
+  ####################
+  # Headscale (Mesh VPN Control Plane)
+  ####################
+  headscale:
+    image: headscale/headscale:latest
+    container_name: headscale
+    restart: unless-stopped
+    command: serve
+    environment:
+      HEADSCALE_LOG_LEVEL: "info"
+    volumes:
+      - headscale_data:/var/lib/headscale
+      - ./headscale/config.yaml:/etc/headscale/config.yaml:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "headscale", "routes", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      # Headscale API (VPN-only)
+      - "traefik.enable=true"
+      - "traefik.http.routers.headscale.rule=Host(`headscale.murphylab.app`)"
+      - "traefik.http.routers.headscale.entrypoints=websecure"
+      - "traefik.http.routers.headscale.tls.certresolver=letsencrypt"
+      - "traefik.http.services.headscale.loadbalancer.server.port=8080"
+      - "traefik.http.routers.headscale.middlewares=vpn-only@file"
+    networks:
+      - web
+      - headscale_net
+    ports:
+      - "3478:3478/udp"  # Headscale control plane UDP
+
+  ####################
+  # Portainer Server (VPN-only UI; Agent runs on Pi3)
+  ####################
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    labels:
+      # Portainer UI (VPN-only)
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.murphylab.app`)"
+      - "traefik.http.routers.portainer.entrypoints=websecure"
+      - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+      - "traefik.http.routers.portainer.middlewares=vpn-only@file"
+    networks:
+      - web
+      - headscale_net
+
+  ####################
+  # Vaultwarden (Password Manager, VPN-only)
+  ####################
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      SIGNUPS_ALLOWED: "false"
+      WEBSOCKET_ENABLED: "true"
+      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
+      DOMAIN: ${VAULTWARDEN_DOMAIN}
+      LOG_LEVEL: "info"
+    volumes:
+      - vaultwarden_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/alive"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    labels:
+      # Vaultwarden (VPN-only)
+      - "traefik.enable=true"
+      - "traefik.http.routers.vaultwarden.rule=Host(`vault.murphylab.app`)"
+      - "traefik.http.routers.vaultwarden.entrypoints=websecure"
+      - "traefik.http.routers.vaultwarden.tls.certresolver=letsencrypt"
+      - "traefik.http.services.vaultwarden.loadbalancer.server.port=80"
+      - "traefik.http.routers.vaultwarden.middlewares=vpn-only@file"
+    networks:
+      - web
+      - headscale_net
+
+  ####################
+  # ActualBudget (Budget App, VPN-only)
+  ####################
+  actualbudget:
+    image: actualbudget/actualbudget:latest
+    container_name: actualbudget
+    restart: unless-stopped
+    environment:
+      ADMIN_PASSWORD: ${ACTUALBUDGET_ADMIN_PASSWORD}
+    volumes:
+      - actualbudget_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    labels:
+      # ActualBudget (VPN-only)
+      - "traefik.enable=true"
+      - "traefik.http.routers.actualbudget.rule=Host(`budget.murphylab.app`)"
+      - "traefik.http.routers.actualbudget.entrypoints=websecure"
+      - "traefik.http.routers.actualbudget.tls.certresolver=letsencrypt"
+      - "traefik.http.services.actualbudget.loadbalancer.server.port=3000"
+      - "traefik.http.routers.actualbudget.middlewares=vpn-only@file"
+    networks:
+      - web
+      - headscale_net
+
+  ####################
+  # Immich (server, ML, Redis, DB) - aligned with upstream example
+  ####################
+  immich-server:
+    container_name: immich_server
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    volumes:
+      # Do not edit the next line. If you want to change the media storage location on your system, edit UPLOAD_LOCATION in .env
+      - ${UPLOAD_LOCATION:-./volumes/immich/upload}:/data
+      - /etc/localtime:/etc/localtime:ro
+    env_file:
+      - .env.common
+      - .env.optiplex
+    ports:
+      - '2283:2283'
+    depends_on:
+      - redis
+      - database
+    restart: always
+    healthcheck:
+      disable: false
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.immich.rule=Host(`photos.murphylab.app`)"
+      - "traefik.http.routers.immich.entrypoints=websecure"
+      - "traefik.http.routers.immich.tls.certresolver=letsencrypt"
+      - "traefik.http.services.immich.loadbalancer.server.port=2283"
+      - "traefik.http.routers.immich.middlewares=vpn-only@file"
+    networks:
+      - web
+      - headscale_net
+
+  immich-machine-learning:
+    container_name: immich_machine_learning
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+    volumes:
+      - model-cache:/cache
+    env_file:
+      - .env.common
+      - .env.optiplex
+    restart: always
+    healthcheck:
+      disable: false
+
+  redis:
+    container_name: immich_redis
+    image: docker.io/valkey/valkey:9@sha256:fb8d272e529ea567b9bf1302245796f21a2672b8368ca3fcb938ac334e613c8f
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping || exit 1"]
+    restart: always
+
+  database:
+    container_name: immich_postgres
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_DB: ${DB_DATABASE_NAME}
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+    volumes:
+      - ${DB_DATA_LOCATION:-./volumes/immich-db}:/var/lib/postgresql/data
+    shm_size: 128mb
+    restart: always
+
+  ####################
+  # Booklore (Public Book App with Basic Auth)
+  ####################
+  booklore:
+    image: booklore/booklore:latest
+    # Alternative: Use GitHub Container Registry
+    # image: ghcr.io/booklore-app/booklore:latest
+    container_name: booklore
+    environment:
+      - USER_ID=${APP_USER_ID}
+      - GROUP_ID=${APP_GROUP_ID}
+      - TZ=${TZ}
+      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_USERNAME=${DB_USER}
+      - DATABASE_PASSWORD=${DB_PASSWORD}
+      - BOOKLORE_PORT=${BOOKLORE_PORT}
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    ports:
+      - "${BOOKLORE_PORT}:${BOOKLORE_PORT}"
+    volumes:
+      - booklore_data:/app/data
+      - bookdata_books:/books
+      - bookdata_bookdrop:/bookdrop
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:${BOOKLORE_PORT}/api/v1/healthcheck"]
+      interval: 60s
+      retries: 5
+      start_period: 60s
+      timeout: 10s
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.booklore.rule=Host(`booklore.murphylab.app`)"
+      - "traefik.http.routers.booklore.entrypoints=websecure"
+      - "traefik.http.routers.booklore.tls.certresolver=letsencrypt"
+      - "traefik.http.services.booklore.loadbalancer.server.port=${BOOKLORE_PORT}"
+      - "traefik.http.routers.booklore.middlewares=security-headers@file"
+    networks:
+      - web
+
+  mariadb:
+    image: lscr.io/linuxserver/mariadb:11.4.5
+    container_name: mariadb
+    environment:
+      - PUID=${DB_USER_ID}
+      - PGID=${DB_GROUP_ID}
+      - TZ=${TZ}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - ./mariadb/config:/config
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - web
+
+  ####################
+  # OpenBooks (VPN-only)
+  ####################
+  openbooks:
+    image: evanbuss/openbooks:latest
+    container_name: openbooks
+    restart: unless-stopped
+    volumes:
+      - openbooks_data:/data
+      # Ensure OpenBooks writes downloaded files to the shared host path used by Booklore
+      - bookdata_books:/books
+      - bookdata_bookdrop:/bookdrop
+    environment:
+      # Ensure OpenBooks-created files receive proper host ownership
+      APP_USER_ID: ${APP_USER_ID}
+      APP_GROUP_ID: ${APP_GROUP_ID}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    labels:
+      # OpenBooks (VPN-only)
+      - "traefik.enable=true"
+      - "traefik.http.routers.openbooks.rule=Host(`openbooks.murphylab.app`)"
+      - "traefik.http.routers.openbooks.entrypoints=websecure"
+      - "traefik.http.routers.openbooks.tls.certresolver=letsencrypt"
+      - "traefik.http.services.openbooks.loadbalancer.server.port=80"
+      - "traefik.http.routers.openbooks.middlewares=vpn-only@file"
+    networks:
+      - web
+      - headscale_net
+
+  ####################
+  # N8N (Workflow Automation, VPN-only)
+  ####################
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    environment:
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: "admin"
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
+      N8N_HOST: "n8n.murphylab.app"
+      N8N_PROTOCOL: "https"
+      N8N_PORT: "5678"
+      N8N_EDITOR_BASE_URL: "https://n8n.murphylab.app/"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      # N8N (VPN-only)
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`n8n.murphylab.app`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+      - "traefik.http.routers.n8n.middlewares=security-headers@file,vpn-only@file"
+    networks:
+      - web
+      - headscale_net
+
+  ####################
+  # Beszel (Uptime Monitoring, VPN-only)
+  ####################
+  beszel:
+    image: beszel/beszel:latest
+    container_name: beszel
+    restart: unless-stopped
+    environment:
+      BESZEL_ADMIN_PASSWORD: ${BESZEL_ADMIN_PASSWORD}
+    volumes:
+      - beszel_data:/data
+      # Local socket directory used when agent runs on same host
+      - beszel_socket:/beszel_socket
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    labels:
+      # Beszel (VPN-only)
+      - "traefik.enable=true"
+      - "traefik.http.routers.beszel.rule=Host(`beszel.murphylab.app`)"
+      - "traefik.http.routers.beszel.entrypoints=websecure"
+      - "traefik.http.routers.beszel.tls.certresolver=letsencrypt"
+      - "traefik.http.services.beszel.loadbalancer.server.port=8080"
+      - "traefik.http.routers.beszel.middlewares=vpn-only@file"
+    networks:
+      - web
+      - headscale_net
+
+  beszel-agent:
+    image: henrygd/beszel-agent:latest
+    container_name: beszel-agent
+    restart: unless-stopped
+    volumes:
+      - beszel_agent_data:/var/lib/beszel-agent
+      - beszel_socket:/beszel_socket
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - LISTEN=/beszel_socket/beszel.sock
+      - HUB_URL=http://beszel:8080
+      - TOKEN=${BESZEL_AGENT_TOKEN}
+      - KEY=${BESZEL_AGENT_KEY}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+    networks:
+      - web
+      - headscale_net
+
+  ####################
+  # Paperless-ngx (Document Management, VPN-only)
+  ####################
+  paperless-db:
+    image: postgres:15-alpine
+    container_name: paperless-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}  # Reuse secure password
+      POSTGRES_DB: paperless
+    volumes:
+      - ./volumes/paperless-db:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperless"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - web
+
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless
+    restart: unless-stopped
+    depends_on:
+      paperless-db:
+        condition: service_healthy
+    environment:
+      PAPERLESS_ADMIN_USER: "admin"
+      PAPERLESS_ADMIN_PASSWORD: ${IMMICH_ADMIN_PASSWORD}  # Reuse secure password
+      PAPERLESS_SECRET_KEY: ${N8N_BASIC_AUTH_PASSWORD}
+      PAPERLESS_URL: "https://paperless.murphylab.app"
+      PAPERLESS_ALLOWED_HOSTS: "paperless.murphylab.app"
+      PAPERLESS_ENABLE_COMPRESSION: "true"
+      PAPERLESS_TIME_ZONE: "UTC"
+      PAPERLESS_DBHOST: "paperless-db"
+    volumes:
+      - ./volumes/paperless/data:/usr/src/paperless/data
+      - ./volumes/paperless/media:/usr/src/paperless/media
+      - ./volumes/paperless/export:/usr/src/paperless/export
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/accounts/login/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      # Paperless (VPN-only)
+      - "traefik.enable=true"
+      - "traefik.http.routers.paperless.rule=Host(`paperless.murphylab.app`)"
+      - "traefik.http.routers.paperless.entrypoints=websecure"
+      - "traefik.http.routers.paperless.tls.certresolver=letsencrypt"
+      - "traefik.http.services.paperless.loadbalancer.server.port=8000"
+      - "traefik.http.routers.paperless.middlewares=vpn-only@file"
+    networks:
+      - web
+      - headscale_net

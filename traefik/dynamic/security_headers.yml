@@ -1,0 +1,19 @@
+http:
+  middlewares:
+    security-headers:
+      headers:
+        # Enforce HTTPS for browsers
+        sslRedirect: true
+        # HSTS: 10 years, include subdomains, preload
+        stsSeconds: 315360000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        # Basic XSS/Content protections
+        browserXssFilter: true
+        contentTypeNosniff: true
+        # Prevent framing
+        frameDeny: true
+        # Set a sane Referrer-Policy
+        referrerPolicy: "no-referrer-when-downgrade"
+        # Optional: force host for HSTS
+        # sslHost: "example.com"

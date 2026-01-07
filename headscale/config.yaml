@@ -1,0 +1,88 @@
+# Headscale Configuration
+# Location: ./headscale/config.yaml
+# 
+# This is a minimal Headscale configuration for homelab use.
+# Modify as needed for your environment.
+
+# Headscale server configuration
+server:
+  # Listening address
+  listen_addr: 0.0.0.0:8080
+  
+  # The default URL exposed to clients. Must be HTTPS.
+  # This should point to the Traefik reverse proxy
+  public_url: "https://headscale.murphylab.app"
+  
+  # Grpc listen address
+  grpc_listen_addr: 0.0.0.0:50443
+  grpc_allow_insecure: false
+
+# Database configuration
+db:
+  type: sqlite3
+  sqlite:
+    path: /var/lib/headscale/db.sqlite3
+
+# Logging
+log:
+  format: json
+  level: info
+
+# IP address management
+prefixes:
+  v4: "100.64.0.0/10"  # Headscale overlay network (IPv4)
+  v6: "fd7a:115c:a1e0::/48"  # IPv6 allocation
+
+# DNS settings
+dns:
+  # Base domain for user DNS zones
+  base_domain: "murphylab.app"
+  
+  # Enable DNS filtering
+  nameservers:
+    - 100.64.0.1  # Use Headscale itself as resolver
+    # Or point to AdGuard on Pi3:
+    # - 100.64.0.2:53
+
+# ACL (Access Control List) policy
+# This defines which machines can communicate with each other
+acl:
+  policy_file: /var/lib/headscale/acl.hujson
+
+# OIDC configuration (optional, for SSO)
+# oidc:
+#   only_start_if_oidc_is_available: true
+#   issuer: "https://accounts.google.com"
+#   client_id: "your-client-id"
+#   client_secret: "your-client-secret"
+#   scope: ["openid", "profile", "email"]
+#   extra_params:
+#     prompt: "login"
+#   allowed_domains:
+#     - "murphylab.app"
+
+# Machine management
+machine_authorization:
+  # Require explicit approval of new machines
+  enabled: true
+
+# Optional: DERP (Designated Encrypted Relay Protocol) servers
+# These are used if direct P2P connections fail
+derp:
+  server:
+    enabled: false  # Disable local DERP server
+    
+  # Use Tailscale's public DERP servers (default)
+  urls:
+    - https://controlplane.tailscale.com/derpmap/default
+  
+  # Optional: Auto-update DERP server list
+  auto_update_enabled: true
+  update_frequency: 24h
+
+# Registration webhook (optional)
+# register_webhook: "https://your-webhook-endpoint"
+
+# Disable registration token requirement
+# registration_webhook:
+#   enabled: false

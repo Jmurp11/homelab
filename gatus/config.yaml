@@ -1,0 +1,144 @@
+# Gatus Configuration for Pi3 Uptime Monitoring
+# Location: ./gatus/config.yaml (to be copied to Pi3)
+#
+# Gatus monitors the health of local and remote services and provides a web dashboard.
+# This config monitors services running on both Optiplex and Pi3.
+
+storage:
+  type: sqlite
+  path: /etc/gatus/gatus.db
+
+ui:
+  title: "Homelab Status | Pi3"
+  description: "Service uptime and health monitoring"
+  logo: "https://www.gatus.io/assets/logo.png"
+
+# Web server config
+web:
+  port: 8080
+  address: 0.0.0.0
+
+# Endpoints to monitor
+endpoints:
+  # Optiplex Services (via Headscale IP)
+  - name: "Traefik - Optiplex"
+    url: "https://traefik.murphylab.app/ping"
+    method: GET
+    insecure: true
+    interval: 30s
+    timeout: 10s
+    conditions:
+      - "[STATUS] == 200"
+    alert:
+      type: slack
+      enabled: false  # Enable if you have Slack webhook
+
+  - name: "Headscale - Control Plane"
+    url: "https://headscale.murphylab.app/api/v1/health"
+    method: GET
+    insecure: true
+    interval: 30s
+    timeout: 10s
+    conditions:
+      - "[STATUS] == 200 || [STATUS] == 404"  # Headscale may return 404 if not authenticated
+
+  - name: "Vaultwarden - Optiplex"
+    url: "https://vault.murphylab.app/alive"
+    method: GET
+    insecure: true
+    interval: 30s
+    timeout: 10s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: "Immich - Optiplex"
+    url: "https://photos.murphylab.app/api/server/ping"
+    method: GET
+    insecure: true
+    interval: 30s
+    timeout: 10s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: "Portainer - Optiplex"
+    url: "https://portainer.murphylab.app/api/system/status"
+    method: GET
+    insecure: true
+    interval: 30s
+    timeout: 10s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: "N8N - Optiplex"
+    url: "https://n8n.murphylab.app/healthz"
+    method: GET
+    insecure: true
+    interval: 30s
+    timeout: 10s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: "ActualBudget - Optiplex"
+    url: "https://budget.murphylab.app"
+    method: GET
+    insecure: true
+    interval: 60s
+    timeout: 10s
+    conditions:
+      - "[STATUS] >= 200 && [STATUS] < 400"
+
+  # Pi3 Services
+  - name: "AdGuard - Pi3"
+    url: "http://localhost:3000"  # Direct access on Pi3
+    method: GET
+    interval: 30s
+    timeout: 10s
+    conditions:
+      - "[STATUS] >= 200 && [STATUS] < 400"
+
+  - name: "Portainer Agent - Pi3"
+    url: "http://localhost:9001/api/status"
+    method: GET
+    interval: 30s
+    timeout: 10s
+    conditions:
+      - "[STATUS] == 200 || [STATUS] == 401"  # Agent may require auth
+
+  - name: "Paperless - Optiplex"
+    # Paperless moved from Pi3 to Optiplex; monitor the public Optiplex hostname
+    url: "https://paperless.murphylab.app/accounts/login/"
+    method: GET
+    insecure: true
+    interval: 30s
+    timeout: 10s
+    conditions:
+      - "[STATUS] >= 200 && [STATUS] < 400"
+
+  # DNS Resolution Check (AdGuard)
+  - name: "DNS Resolution (Pi3)"
+    url: "https://dns.google.com/resolve?name=murphylab.app"
+    method: GET
+    interval: 60s
+    timeout: 10s
+    conditions:
+      - "[STATUS] == 200"
+
+# Alerting (optional)
+# alerting:
+#   slack:
+#     webhook-url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+#     default-alert:
+#       description: "Service {{ .ServiceName }} is DOWN"
+#       send-on-resolved: true
+#       send-on-failure: true
+
+# Maintenance window (no alerts during maintenance)
+# maintenance:
+#   start: "03:00"
+#   duration: 30m
+#   every:
+#     - "Sunday"
+
+# Metrics (optional, for Prometheus)
+# metrics:
+#   enabled: true

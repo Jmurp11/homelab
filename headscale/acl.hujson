@@ -1,0 +1,82 @@
+# Headscale ACL Policy
+# Location: ./headscale/acl.hujson
+#
+# This file defines network access control rules between Headscale machines.
+# Machines are grouped by tags, and rules define which tags can communicate.
+#
+# Format: hujson (Human-friendly JSON, supports comments and trailing commas)
+
+{
+  // Define groups of machines by tag
+  "groups": {
+    "group:admins": ["admin@murphylab.app"],
+    "group:optiplex": ["optiplex@murphylab.app"],
+    "group:pi3": ["pi3@murphylab.app"],
+    "group:clients": ["user@murphylab.app"],
+  },
+
+  // Define network access policies
+  // Rules are evaluated top-to-bottom; first match wins
+  "acls": [
+    // Admin machines can reach everything
+    {
+      "action": "accept",
+      "src": ["group:admins"],
+      "dst": ["*:*"],
+    },
+
+    // Optiplex can reach everything
+    {
+      "action": "accept",
+      "src": ["group:optiplex"],
+      "dst": ["*:*"],
+    },
+
+    // Pi3 can reach Optiplex and itself
+    {
+      "action": "accept",
+      "src": ["group:pi3"],
+      "dst": [
+        "group:pi3:*",
+        "group:optiplex:443",  // HTTPS only for Optiplex services
+        "group:optiplex:3478",  // Headscale UDP
+      ],
+    },
+
+    // Clients can reach services but not admin interfaces
+    {
+      "action": "accept",
+      "src": ["group:clients"],
+      "dst": [
+        "group:optiplex:443",  // Public HTTPS services
+        "group:pi3:443",       // Pi3 HTTPS services
+        "group:pi3:53",        // DNS (AdGuard)
+      ],
+    },
+
+    // Deny everything else
+    {
+      "action": "deny",
+      "src": ["*"],
+      "dst": ["*:*"],
+    },
+  ],
+
+  // Optional: SSH policy (allows Tailscale SSH)
+  "ssh": [
+    {
+      "action": "check",
+      "src": ["group:admins"],
+      "dst": ["tag:servers"],
+      "users": ["root", "ubuntu"],
+    },
+  ],
+
+  // Auto-tagging rules (optional)
+  // Machines matching criteria are automatically tagged
+  "autoApprovers": {
+    "routes": {
+      "100.64.0.0/10": ["group:optiplex"],  // Headscale can advertise routes
+    },
+  },
+}

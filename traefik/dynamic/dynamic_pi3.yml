@@ -1,0 +1,96 @@
+# Traefik Dynamic Configuration for Raspberry Pi 3 Services
+# This file is loaded by Traefik on Optiplex and defines backends pointing to Pi3
+# Location: ./traefik/dynamic_pi3.yml
+#
+# SETUP INSTRUCTIONS:
+# 1. Replace PI3_IP with the actual Raspberry Pi 3 LAN IP address (e.g., 192.168.1.100)
+# 2. Place this file in ./traefik/dynamic/ directory
+# 3. Traefik auto-loads all .yml files in ./traefik/dynamic/
+# 4. Services on Pi3 are accessible via traefik on Optiplex with domain suffix .pi3.murphylab.app
+#
+# EXAMPLE: To reach AdGuard Home on Pi3:
+#   https://adguard.pi3.murphylab.app  → http://PI3_IP:3000
+#   https://gatus.pi3.murphylab.app    → http://PI3_IP:8080
+#
+# NOTE: Paperless removed from Pi3 (runs on Optiplex only due to resource constraints)
+#
+# TLS ENFORCEMENT: All routers use "websecure" entrypoint and "letsencrypt" resolver
+# VPN-ONLY ENFORCEMENT: All Pi3 services use "vpn-only@file" middleware (IP whitelist to Headscale subnet 100.64.0.0/10)
+
+http:
+
+  ####################
+  # Routers (URL rules and backend mapping)
+  ####################
+  routers:
+
+    # AdGuard Home (DNS Sinkhole) - Pi3
+    adguard-pi3:
+      rule: "Host(`adguard.pi3.murphylab.app`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+      service: adguard-pi3
+      middlewares:
+        - vpn-only@file
+
+    # Gatus (Uptime Monitor) - Pi3
+    gatus-pi3:
+      rule: "Host(`gatus.pi3.murphylab.app`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+      service: gatus-pi3
+      middlewares:
+        - vpn-only@file
+
+  ####################
+  # Services (backend server definitions)
+  # NOTE: Replace PI3_IP with actual Raspberry Pi 3 LAN IP (e.g., 192.168.1.100)
+  ####################
+  services:
+
+    adguard-pi3:
+      loadBalancer:
+        servers:
+          - url: "http://PI3_IP:3000"  # ← REPLACE PI3_IP with actual Pi3 IP
+
+    gatus-pi3:
+      loadBalancer:
+        servers:
+          - url: "http://PI3_IP:8080"  # ← REPLACE PI3_IP with actual Pi3 IP
+
+  ####################
+  # Middlewares
+  ####################
+  middlewares:
+
+    # VPN-Only Whitelist Middleware
+    # Restricts access to clients with IP in Headscale subnet (100.64.0.0/10)
+    vpn-only:
+      ipWhiteList:
+        sourceRange:
+          - "100.64.0.0/10"        # Headscale overlay network
+          - "127.0.0.1/32"          # Localhost (for testing)
+        ipStrategy:
+          depth: 1
+
+    # Optional: Trailing slash redirect (if needed)
+    stripprefix:
+      stripPrefix:
+        prefixes:
+          - "/pi3"
+
+    # Optional: Basic auth for Pi3 services (if stricter auth needed)
+    basicauth-pi3:
+      basicAuth:
+        users:
+          - "admin:$2y$10$INSERT_BCRYPT_HASH_HERE"  # Use `htpasswd -nb admin password | base64`
+
+####################
+# TLS CERTIFICATES (inherited from main traefik.yml)
+# The letsencrypt resolver is shared globally and reuses certs for *.murphylab.app
+####################
+# No additional TLS config needed here; inherited from traefik.yml
