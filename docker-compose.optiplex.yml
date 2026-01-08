@@ -84,7 +84,7 @@ services:
       - "traefik.http.routers.traefik.rule=Host(`traefik.murphylab.app`)"
       - "traefik.http.routers.traefik.entrypoints=websecure"
       - "traefik.http.routers.traefik.service=api@internal"
-      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik.tls.certResolver=letsencrypt"
       - "traefik.http.routers.traefik.middlewares=vpn-only@file"
     networks:
       - homelab_web
@@ -119,7 +119,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.headscale.rule=Host(`headscale.murphylab.app`)"
       - "traefik.http.routers.headscale.entrypoints=websecure"
-      - "traefik.http.routers.headscale.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.headscale.tls.certResolver=letsencrypt"
       - "traefik.http.services.headscale.loadbalancer.server.port=8082"
       - "traefik.http.routers.headscale.middlewares=vpn-only@file"
     networks:
@@ -155,7 +155,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.portainer.rule=Host(`portainer.murphylab.app`)"
       - "traefik.http.routers.portainer.entrypoints=websecure"
-      - "traefik.http.routers.portainer.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.portainer.tls.certResolver=letsencrypt"
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"
       - "traefik.http.routers.portainer.middlewares=vpn-only@file"
     networks:
@@ -194,7 +194,7 @@ services:
       - "traefik.http.routers.vaultwarden.rule=Host(`vault.murphylab.app`)"
       - "traefik.http.routers.vaultwarden.entrypoints=websecure"
       - "traefik.docker.network=homelab_web"
-      - "traefik.http.routers.vaultwarden.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.vaultwarden.tls.certResolver=letsencrypt"
       - "traefik.http.services.vaultwarden.loadbalancer.server.port=80"
       - "traefik.http.routers.vaultwarden.middlewares=vpn-only@file"
     networks:
@@ -228,7 +228,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.actualbudget.rule=Host(`budget.murphylab.app`)"
       - "traefik.http.routers.actualbudget.entrypoints=websecure"
-      - "traefik.http.routers.actualbudget.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.actualbudget.tls.certResolver=letsencrypt"
       - "traefik.http.services.actualbudget.loadbalancer.server.port=3000"
       - "traefik.http.routers.actualbudget.middlewares=vpn-only@file"
     networks:
@@ -267,7 +267,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.immich.rule=Host(`photos.murphylab.app`)"
       - "traefik.http.routers.immich.entrypoints=websecure"
-      - "traefik.http.routers.immich.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.immich.tls.certResolver=letsencrypt"
       - "traefik.http.services.immich.loadbalancer.server.port=2283"
       - "traefik.http.routers.immich.middlewares=vpn-only@file"
     networks:
@@ -358,7 +358,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.booklore.rule=Host(`booklore.murphylab.app`)"
       - "traefik.http.routers.booklore.entrypoints=websecure"
-      - "traefik.http.routers.booklore.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.booklore.tls.certResolver=letsencrypt"
       - "traefik.http.services.booklore.loadbalancer.server.port=${BOOKLORE_PORT}"
       - "traefik.http.routers.booklore.middlewares=security-headers@file"
     networks:
@@ -419,7 +419,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.openbooks.rule=Host(`openbooks.murphylab.app`)"
       - "traefik.http.routers.openbooks.entrypoints=websecure"
-      - "traefik.http.routers.openbooks.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.openbooks.tls.certResolver=letsencrypt"
       - "traefik.http.services.openbooks.loadbalancer.server.port=80"
       - "traefik.http.routers.openbooks.middlewares=vpn-only@file"
     networks:
@@ -460,7 +460,7 @@ services:
       - "traefik.http.routers.n8n.rule=Host(`n8n.murphylab.app`)"
       - "traefik.http.routers.n8n.entrypoints=websecure"
       - "traefik.docker.network=homelab_web"
-      - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.n8n.tls.certResolver=letsencrypt"
       - "traefik.http.services.n8n.loadbalancer.server.port=5678"
       - "traefik.http.routers.n8n.middlewares=security-headers@file,vpn-only@file"
     networks:
@@ -496,7 +496,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.beszel.rule=Host(`beszel.murphylab.app`)"
       - "traefik.http.routers.beszel.entrypoints=websecure"
-      - "traefik.http.routers.beszel.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.beszel.tls.certResolver=letsencrypt"
       - "traefik.http.services.beszel.loadbalancer.server.port=8081"
       - "traefik.http.routers.beszel.middlewares=vpn-only@file"
     networks:
@@ -566,7 +566,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.paperless.rule=Host(`paperless.murphylab.app`)"
       - "traefik.http.routers.paperless.entrypoints=websecure"
-      - "traefik.http.routers.paperless.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.paperless.tls.certResolver=letsencrypt"
       - "traefik.http.services.paperless.loadbalancer.server.port=8000"
       - "traefik.http.routers.paperless.middlewares=vpn-only@file"
     networks:
@@ -588,7 +588,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.changedetection.rule=Host(`changedetection.murphylab.app`)"
       - "traefik.http.routers.changedetection.entrypoints=websecure"
-      - "traefik.http.routers.changedetection.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.changedetection.tls.certResolver=letsencrypt"
       - "traefik.http.services.changedetection.loadbalancer.server.port=5000"
       - "traefik.http.routers.changedetection.middlewares=security-headers@file,vpn-only@file"
     networks:
@@ -607,7 +607,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.homearr.rule=Host(`homearr.murphylab.app`)"
       - "traefik.http.routers.homearr.entrypoints=websecure"
-      - "traefik.http.routers.homearr.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.homearr.tls.certResolver=letsencrypt"
       - "traefik.http.services.homearr.loadbalancer.server.port=8085" # ← verify
       - "traefik.http.routers.homearr.middlewares=vpn-only@file"
     networks:
@@ -627,7 +627,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.serpbear.rule=Host(`serpbear.murphylab.app`)"
       - "traefik.http.routers.serpbear.entrypoints=websecure"
-      - "traefik.http.routers.serpbear.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.serpbear.tls.certResolver=letsencrypt"
       - "traefik.http.services.serpbear.loadbalancer.server.port=8086" 
       - "traefik.http.routers.serpbear.middlewares=security-headers@file"
     networks:
