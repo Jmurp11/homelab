@@ -30,7 +30,7 @@ http:
       entryPoints:
         - websecure
       tls:
-        certResolver: letsencrypt
+        certresolver: letsencrypt
       service: adguard-pi3
       middlewares:
         - vpn-only@file
@@ -41,7 +41,7 @@ http:
       entryPoints:
         - websecure
       tls:
-        certResolver: letsencrypt
+        certresolver: letsencrypt
       service: gatus-pi3
       middlewares:
         - vpn-only@file
