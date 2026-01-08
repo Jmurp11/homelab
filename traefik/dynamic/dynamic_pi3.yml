@@ -70,7 +70,7 @@ http:
     # VPN-Only Whitelist Middleware
     # Restricts access to clients with IP in Headscale subnet (100.64.0.0/10)
     vpn-only:
-      ipWhiteList:
+      ipAllowList:
         sourceRange:
           - "100.64.0.0/10"        # Headscale overlay network
           - "127.0.0.1/32"          # Localhost (for testing)
