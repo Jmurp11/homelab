@@ -53,7 +53,7 @@ check_env() {
     
     for var in LETSENCRYPT_EMAIL DNS_PROVIDER_API_KEY VAULTWARDEN_ADMIN_TOKEN \
                IMMICH_DB_PASSWORD IMMICH_ADMIN_PASSWORD ACTUALBUDGET_ADMIN_PASSWORD \
-               N8N_BASIC_AUTH_PASSWORD BESZEL_ADMIN_PASSWORD HEADSCALE_ADMIN_PASSWORD; do
+               N8N_BASIC_AUTH_PASSWORD BESZEL_ADMIN_PASSWORD; do
         if [ -z "${!var}" ]; then
             missing_vars+=("$var")
         fi
@@ -98,7 +98,6 @@ PORTAINER_AGENT_SECRET=${PORTAINER_AGENT_SECRET:-change-me-secure-secret}
 ADGUARD_ADMIN_PASSWORD=${ADGUARD_ADMIN_PASSWORD:-}
 GATUS_ADMIN_PASSWORD=${GATUS_ADMIN_PASSWORD:-}
 LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
-DNS_PROVIDER_API_KEY=${DNS_PROVIDER_API_KEY}
 IMMICH_DB_PASSWORD=${IMMICH_DB_PASSWORD}
 IMMICH_ADMIN_PASSWORD=${IMMICH_ADMIN_PASSWORD}
 N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
@@ -123,7 +122,7 @@ verify_traefik() {
     fi
     
     # Check Traefik API
-    if curl -s http://localhost:8080/ping > /dev/null; then
+    if curl -s http://localhost:8083/ping > /dev/null; then
         log_success "Traefik API is responding"
     else
         log_warn "Traefik API not yet responsive (may be starting)"
@@ -200,7 +199,7 @@ show_networks() {
 show_routes() {
     log_info "Traefik routers and services:"
     
-    if curl -s http://localhost:8080/api/http/routers > /dev/null; then
+    if curl -s http://localhost:8083/api/http/routers > /dev/null; then
         echo "Check Traefik dashboard at: https://traefik.murphylab.app (VPN-only)"
     else
         log_warn "Traefik API not yet ready"

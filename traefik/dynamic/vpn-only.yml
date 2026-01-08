@@ -1,0 +1,6 @@
+http:
+  middlewares:
+    vpn-only:
+      ipAllowList:
+        sourceRange:
+          - 100.64.0.0/10  # Only allow access from Headscale VPN subnet

@@ -7,15 +7,16 @@
 # Headscale server configuration
 server:
   # Listening address
-  listen_addr: 0.0.0.0:8080
-  
+  listen_addr: 0.0.0.0:8082
   # The default URL exposed to clients. Must be HTTPS.
   # This should point to the Traefik reverse proxy
-  public_url: "https://headscale.murphylab.app"
-  
+  server_url: https://headscale.murphylab.app
+  public_url: https://headscale.murphylab.app
   # Grpc listen address
   grpc_listen_addr: 0.0.0.0:50443
   grpc_allow_insecure: false
+  noise:
+    private_key_path: /var/lib/headscale/noise_private.key
 
 # Database configuration
 db:
@@ -37,12 +38,12 @@ prefixes:
 dns:
   # Base domain for user DNS zones
   base_domain: "murphylab.app"
-  
   # Enable DNS filtering
   nameservers:
-    - 100.64.0.1  # Use Headscale itself as resolver
+    global:
+      - 100.64.0.1  # Use Headscale itself as resolver
     # Or point to AdGuard on Pi3:
-    # - 100.64.0.2:53
+    #   - 100.64.0.2:53
 
 # ACL (Access Control List) policy
 # This defines which machines can communicate with each other
