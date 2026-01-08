@@ -52,7 +52,7 @@ log:
 accessLog:
   format: common
 
-certificateResolvers:
+certificatesResolvers:
   letsencrypt:
     acme:
       email: ${LETSENCRYPT_EMAIL}

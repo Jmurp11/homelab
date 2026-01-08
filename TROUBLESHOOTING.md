@@ -522,7 +522,7 @@ curl http://localhost:8080/api/http/routers | jq '.[] | select(.name=="portainer
      - "traefik.enable=true"  # CRITICAL: must be true
      - "traefik.http.routers.myservice.rule=Host(`myservice.murphylab.app`)"
      - "traefik.http.routers.myservice.entrypoints=websecure"
-     - "traefik.http.routers.myservice.tls.certresolver=letsencrypt"
+   - "traefik.http.routers.myservice.tls.certResolver=letsencrypt"
      - "traefik.http.services.myservice.loadbalancer.server.port=3000"
    ```
 
