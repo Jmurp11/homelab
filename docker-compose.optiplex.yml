@@ -605,7 +605,7 @@ services:
       - homearr_data:/config
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.homearr.rule=Host(`homearr.murphylab.app`)"
+      - "traefik.http.routers.homearr.rule=Host(`dashboard.murphylab.app`)"
       - "traefik.http.routers.homearr.entrypoints=websecure"
       - "traefik.http.routers.homearr.tls.certResolver=letsencrypt"
       - "traefik.http.services.homearr.loadbalancer.server.port=8085" # ← verify
